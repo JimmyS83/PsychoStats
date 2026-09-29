@@ -322,7 +322,7 @@ sub _init {
 		$self->fatal("Error adding player to database: " . $db->errstr) unless $res;
 
 		# make sure the players profile is present
-		if (!$db->select($db->{t_plr_profile}, 'uniqueid', [ uniqueid => $self->uniqueid ])) {
+		if (!defined $db->select($db->{t_plr_profile}, 'uniqueid', [ uniqueid => $self->uniqueid ])) {	# defined(): uniqueid '0' (ipaddr of bots) is false in perl
 			$db->insert($db->{t_plr_profile}, { 
 				uniqueid => $self->uniqueid,
 				name => $self->name

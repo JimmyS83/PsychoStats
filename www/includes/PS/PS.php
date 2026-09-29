@@ -379,6 +379,8 @@ function search_players($search_id, $criteria) {
 	} elseif ($criteria['status' == 'unranked']) {
 		$cmd .= "AND p.allowrank=0 ";
 	} 
+	// If bots are to be excluded from being listed
+	if ($criteria['status'] == 'ranked' and !$this->conf['main']['ranking']['bots_listed']) $cmd .= $this->bot_filter('p');
 	$cmd .= "AND ($where) ";
 	$cmd .= "LIMIT " . $criteria['limit'];
 	$plrids = $this->db->fetch_list($cmd);
@@ -640,7 +642,7 @@ function get_player($args = array(), $minimal = false) {
 		$cmd .= "WHERE v.plrid='$id' AND v.victimid=plr.plrid AND pp.uniqueid=plr.uniqueid ";
 
 		// If bots are to be excluded from being listed
-		if (!$this->conf['main']['ranking']['bots_listed']) $cmd .= "AND (plr.uniqueid NOT LIKE '%BOT%') ";
+		if (!$this->conf['main']['ranking']['bots_listed']) $cmd .= $this->bot_filter('plr');
 
 		$cmd .= $this->getsortorder($args, 'victim');
 		$plr['victims'] = $this->db->fetch_rows(1, $cmd);
@@ -828,7 +830,7 @@ function get_clan($args = array(), $minimal = false) {
 	if (trim($args['where']) != '') $cmd .= "AND (" . $args['where'] . ") ";
 
 	// If bots are to be excluded from being listed
-	if (!$this->conf['main']['ranking']['bots_listed']) $cmd .= "AND (plr.uniqueid NOT LIKE '%BOT%') ";
+	if (!$this->conf['main']['ranking']['bots_listed']) $cmd .= $this->bot_filter('plr');
 
 	$cmd .= "GROUP BY plr.clanid ";
 	$cmd .= $this->getsortorder($args);
@@ -1082,7 +1084,7 @@ function get_weapon_player_list($args = array()) {
 	if ($args['where'] != '') $cmd .= "AND (" . $args['where'] . ") ";
 
 	// If bots are to be excluded from being listed
-	if (!$this->conf['main']['ranking']['bots_listed']) $cmd .= "AND (plr.uniqueid NOT LIKE '%BOT%') ";
+	if (!$this->conf['main']['ranking']['bots_listed']) $cmd .= $this->bot_filter('plr');
 	
 	$cmd .= $this->getsortorder($args);
 	$list = array();
@@ -1114,7 +1116,7 @@ function get_role_player_list($args = array()) {
 	if ($args['where'] != '') $cmd .= "AND (" . $args['where'] . ") ";
 
 	// If bots are to be excluded from being listed
-	if (!$this->conf['main']['ranking']['bots_listed']) $cmd .= "AND (plr.uniqueid NOT LIKE '%BOT%') ";
+	if (!$this->conf['main']['ranking']['bots_listed']) $cmd .= $this->bot_filter('plr');
 
 	$cmd .= $this->getsortorder($args);
 	$list = array();
@@ -1147,7 +1149,7 @@ function get_map_player_list($args = array()) {
 	if ($args['where'] != '') $cmd .= "AND (" . $args['where'] . ") ";
 
 	// If bots are to be excluded from being listed
-	if (!$this->conf['main']['ranking']['bots_listed']) $cmd .= "AND (plr.uniqueid NOT LIKE '%BOT%') ";
+	if (!$this->conf['main']['ranking']['bots_listed']) $cmd .= $this->bot_filter('plr');
 
 	$cmd .= $this->getsortorder($args);
 	$list = array();
@@ -1201,7 +1203,7 @@ function get_player_list($args = array()) {
 	}
 
 	// If bots are to be excluded from being listed
-	if (!$this->conf['main']['ranking']['bots_listed']) $cmd .= "AND (plr.uniqueid NOT LIKE '%BOT%') ";
+	if (!$this->conf['main']['ranking']['bots_listed']) $cmd .= $this->bot_filter('plr');
 	
 	$list = array();
 	// limit list to search results
@@ -1320,7 +1322,7 @@ function get_clan_list($args = array()) {
 	if (trim($args['where']) != '') $cmd .= "AND (" . $args['where'] . ") ";
 
 	// If bots are to be excluded from being listed
-	if (!$this->conf['main']['ranking']['bots_listed']) $cmd .= "AND (plr.uniqueid NOT LIKE '%BOT%') ";
+	if (!$this->conf['main']['ranking']['bots_listed']) $cmd .= $this->bot_filter('plr');
 
 	$cmd .= "GROUP BY clan.clanid ";
 //	$cmd .= "HAVING totalmembers > " . $this->conf['main']['clans']['min_members'] . " ";
@@ -1447,6 +1449,8 @@ function get_total_players($args = array()) {
 		$cmd = "SELECT count(*) FROM $this->t_plr plr, $this->t_plr_profile pp WHERE pp.uniqueid=plr.uniqueid ";
 	}
 	if (!$args['allowall']) $cmd .= "AND plr.allowrank=1 ";
+	// If bots are to be excluded from being listed
+	if (!$args['allowall'] and !$this->conf['main']['ranking']['bots_listed']) $cmd .= $this->bot_filter('plr');
 	// basic filter
 	if ($filter != '') {
 		$f = '%' . $this->db->escape($filter) . '%';
@@ -2751,6 +2755,15 @@ function gametype() {
 }
 function modtype() {
 	return $this->conf['main']['modtype'];
+}
+
+# returns an SQL filter (starting with AND) that removes bots from a player query.
+# A bot is a player whose worldids are ALL 'BOT:*'. The check is done on the worldid table
+# because plr.uniqueid does not contain 'BOT' when uniqueid is configured as 'name' or 'ipaddr'.
+# $alias is the alias of the ps_plr table in the query.
+function bot_filter($alias = 'plr') {
+	return "AND NOT (EXISTS (SELECT 1 FROM $this->t_plr_ids_worldid bw1 WHERE bw1.plrid=$alias.plrid AND bw1.worldid LIKE 'BOT:%') " .
+	       "AND NOT EXISTS (SELECT 1 FROM $this->t_plr_ids_worldid bw2 WHERE bw2.plrid=$alias.plrid AND bw2.worldid NOT LIKE 'BOT:%')) ";
 }
 
 # returns true if the player is a bot

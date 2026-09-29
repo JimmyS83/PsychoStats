@@ -198,7 +198,7 @@ $cal->selected($v);
 $cms->theme->assign('calendar', $cal->draw());
 
 // If bots are to be excluded from ranking
-$exclude = (!$ps->conf['main']['ranking']['bots_listed']) ? "AND (p.uniqueid NOT LIKE '%BOT%') " : '';
+$exclude = (!$ps->conf['main']['ranking']['bots_listed']) ? $ps->bot_filter('p') : '';
 
 // load the awards for the date specified (for all players; not just the selected one if $p is selected)
 $list = $ps->db->fetch_rows(1, 

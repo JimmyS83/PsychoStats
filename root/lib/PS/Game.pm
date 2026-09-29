@@ -1353,6 +1353,21 @@ sub daily_players {
 	$cmd .= "LEFT JOIN $db->{c_plr_data} c ON c.plrid=p.plrid WHERE c.plrid IS NULL AND p.uniqueid=pp.uniqueid";
 	$db->query($cmd);	# don't care if it fails ...
 
+	# bots (players whose worldids are all 'BOT:*') must not be ranked unless ranking.bots_listed is enabled.
+	# This is checked against the worldid table because plr.uniqueid does not contain 'BOT'
+	# when uniqueid is configured as 'name' or 'ipaddr'.
+	my %botplr;
+	if (!$rules->{bots_listed}) {
+		my $bsth = $db->query(
+			"SELECT plrid FROM $db->{t_plr_ids_worldid} " .
+			"GROUP BY plrid HAVING SUM(worldid NOT LIKE 'BOT:%') = 0"
+		);
+		if ($bsth) {
+			while (my ($bid) = $bsth->fetchrow_array) { $botplr{$bid} = 1; }
+			undef $bsth;
+		}
+	}
+
 	# load player list
 	$cmd  = "SELECT plr.*, pp.name, $fields ";
 	$cmd .= "FROM $db->{t_plr} plr, $db->{t_plr_profile} pp, $db->{c_plr_data} data ";
@@ -1371,6 +1386,7 @@ sub daily_players {
 			&& 
 			((grep { ($row->{$_}||0) > $rules->{'player_max_'.$_} } @max) == 0)
 		) ? 1 : 0;
+		$allowed = 0 if $allowed and $botplr{ $row->{plrid} };
 		if (!$allowed and $::DEBUG) {
 			$self->info("Player failed to rank \"$row->{name}\" " . ($self->{uniqueid} ne 'name' ?  "($row->{uniqueid})" : "") . "=> " . 
 				join(', ', 
